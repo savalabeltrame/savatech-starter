@@ -27,6 +27,7 @@ def _migrar(conn):
             conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
         except sqlite3.OperationalError:
             pass  # la columna ya existe
+            ("config_empresa", "pix_chave", "TEXT"),
 
 
 def inicializar_db():

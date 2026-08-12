@@ -4,3 +4,4 @@ plotly
 fpdf2
 Pillow
 openpyxl
+qrcode
