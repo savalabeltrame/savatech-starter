@@ -35,7 +35,7 @@ def inicializar_db():
     
     # Inyectar una fila por defecto si la tabla está completamente vacía
     cursor.execute("SELECT COUNT(*) FROM config_empresa")
-    if cursor.fetchone()[0] == 0:
+    if cursor.fetchone() == 0:
         cursor.execute("""
             INSERT INTO config_empresa (id, nome_empresa, plano) 
             VALUES (1, 'Minha Loja', 'Starter');
@@ -48,7 +48,7 @@ def inicializar_db():
     except sqlite3.OperationalError:
         pass
 
-    # 3. Crear el resto de las tablas del sistema (Sin comentarios con #)
+    # 3. Crear el resto de las tablas del sistema (Estructura expandida 100% compatible)
     cursor.executescript("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,12 +59,15 @@ def inicializar_db():
         );
 
         CREATE TABLE IF NOT EXISTS produtos (
-            codigo_producto TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo_producto TEXT UNIQUE NOT NULL,
             nombre_producto TEXT NOT NULL,
+            categoria TEXT,
             precio_costo REAL,
             precio_venta REAL,
             estoque_atual REAL,
             stock_minimo REAL,
+            validade TEXT,
             data_vencimento TEXT
         );
 
@@ -97,7 +100,7 @@ def inicializar_db():
     
     # Inyectar un usuario administrador por defecto si la tabla está vacía
     cursor.execute("SELECT COUNT(*) FROM usuarios")
-    if cursor.fetchone()[0] == 0:
+    if cursor.fetchone() == 0:
         cursor.execute("""
             INSERT INTO usuarios (usuario, senha, nome, nivel) 
             VALUES ('admin', 'admin', 'Administrador', 'admin');
