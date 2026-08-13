@@ -181,51 +181,81 @@ else:
 
     st.markdown("---")
 
-    # =========================
-    # 💳 PAGAMENTO
-    # =========================
-    st.subheader("💳 Pagamento")
-    forma_pagamento = st.selectbox(
-        "Forma de pagamento",
-        ['Dinheiro', 'Pix', 'Cartão de Crédito', 'Cartão de Débito'],
-        key="forma_pag"
+  # =========================
+# 💳 PAGAMENTO
+# =========================
+st.subheader("💳 Pagamento")
+
+forma_pagamento = st.selectbox(
+    "Forma de pagamento",
+    ['Dinheiro', 'Pix', 'Cartão de Crédito', 'Cartão de Débito'],
+    key="forma_pag"
+)
+
+pode_finalizar = True
+
+if forma_pagamento == 'Dinheiro':
+    valor_recebido = st.number_input(
+        "💵 Valor recebido do cliente (R$)", 
+        min_value=0.0, 
+        value=float(total), 
+        step=1.0, 
+        key="valor_recebido"
     )
+    if valor_recebido >= total:
+        st.success(f"💵 Troco: R$ {valor_recebido - total:.2f}")
+    else:
+        st.error(f"⚠️ Faltante: R$ {total - valor_recebido:.2f}")
+        pode_finalizar = False
 
-    pode_finalizar = True
-
-    if forma_pagamento == 'Dinheiro':
-        valor_recebido = st.number_input("💵 Valor recebido do cliente (R$)", min_value=0.0, value=float(total), step=1.0, key="valor_recebido")
-        if valor_recebido >= total:
-            st.success(f"💵 Troco: R$ {valor_recebido - total:.2f}")
-        else:
-            st.error(f"⚠️ Faltante: R$ {total - valor_recebido:.2f}")
+if forma_pagamento == 'Pix':
+    chave_pix = empresa['pix_chave'] if 'pix_chave' in empresa.keys() and empresa['pix_chave'] else None
+    
+    if not chave_pix:
+        st.warning("⚠️ Configure a chave Pix da empresa para gerar o QR Code.")
+        nova_chave = st.text_input("Chave Pix (CPF, CNPJ, e-mail ou aleatória)")
+        if st.button("💾 Salvar chave Pix", use_container_width=True):
+            conn.execute("UPDATE config_empresa SET pix_chave = ? WHERE id = 1", (nova_chave,))
+            conn.commit()
+            st.rerun()
+        pode_finalizar = False
+    else:
+        st.markdown("**📱 Exiba o QR Code para o cliente escanear:**")
+        
+        with st.spinner("Gerando QR Code do Pix..."):
+            # 1. Gerar a string padrão do Banco Central usando a sua função corrigida
+            # Nota: Limitei o nome a 25 caracteres e fixei a cidade padrão para evitar falhas bancárias
+            nome_recebedor = empresa['nome_empresa'][:25].upper()
+            payload = generar_string_pix(
+                chave_pix=chave_pix,
+                nome_recebedor=nome_recebedor,
+                cidade_recebedor="JOINVILLE", 
+                valor_total=total
+            )
+            
+            # 2. Configurar o gerador de QR Code
+            qr = qrcode.QRCode(version=1, box_size=10, border=4)
+            qr.add_data(payload)
+            qr.make(fit=True)
+            img_qr = qr.make_image(fill_color="black", back_color="white")
+            
+            # 3. Converter a imagem para bytes na memória para o Streamlit aceitar
+            buf = io.BytesIO()
+            img_qr.save(buf, format="PNG")
+            byte_im = buf.getvalue()
+        
+        # 4. Renderizar a interface visual em duas colunas organizadas
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            st.image(byte_im, caption="Escaneie para pagar", width=230)
+        with c2:
+            st.markdown(f"### **Valor: R$ {total:.2f}**")
+            st.caption("Pix copia e cola:")
+            st.code(payload, language=None)
+            
+        pix_ok = st.checkbox("✅ Pagamento Pix confirmado pelo banco", key="pix_ok")
+        if not pix_ok:
             pode_finalizar = False
-
-    if forma_pagamento == 'Pix':
-        chave_pix = empresa['pix_chave'] if 'pix_chave' in empresa.keys() and empresa['pix_chave'] else None
-
-        if not chave_pix:
-            st.warning("⚠️ Configure a chave Pix da empresa para gerar o QR Code.")
-            nova_chave = st.text_input("Chave Pix (CPF, CNPJ, e-mail ou aleatória)")
-            if st.button("💾 Salvar chave Pix", use_container_width=True):
-                conn.execute("UPDATE config_empresa SET pix_chave = ? WHERE id = 1", (nova_chave,))
-                conn.commit()
-                st.rerun()
-            pode_finalizar = False
-        else:
-            st.markdown("**📱 Exiba o QR Code para o cliente escanear:**")
-            payload = gerar_pix(chave_pix, total, empresa['nome_empresa'])
-            img = qrcode.make(payload)
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                st.image(img, width=230)
-            with c2:
-                st.markdown(f"**Valor: R$ {total:.2f}**")
-                st.caption("Pix copia e cola:")
-                st.code(payload, language=None)
-            pix_ok = st.checkbox("✅ Pagamento Pix confirmado pelo banco", key="pix_ok")
-            if not pix_ok:
-                pode_finalizar = False
 
     # =========================
     # FINALIZAR
