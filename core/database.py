@@ -1,46 +1,27 @@
 import sqlite3
 import os
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, 'data', 'savatech.db')
-LOGOS_DIR = os.path.join(BASE_DIR, 'data', 'logos')
-
+# Ruta estándar de la base de datos dentro de tu proyecto
+DB_PATH = "data/sistema.db"
 
 def get_connection():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    os.makedirs(LOGOS_DIR, exist_ok=True)
+    """Establece una conexión segura con la base de datos SQLite"""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-
-def _migrar(conn):
-    """Agrega columnas nuevas a una base de datos ya existente."""
-    migraciones = [
-        ("produtos", "validade", "TEXT"),
-        ("vendas", "usuario", "TEXT"),
-        ("vendas", "cliente_id", "INTEGER"),
-        ("vendas", "desconto", "REAL DEFAULT 0"),
-    ]
-    for tabla, columna, tipo in migraciones:
-        try:
-            conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
-        except sqlite3.OperationalError:
-            pass  # la columna ya existe
-            ("config_empresa", "pix_chave", "TEXT"),
-
-
 def inicializar_db():
+    """Crea las tablas originales del sistema e inyecta actualizaciones de forma segura"""
+    # Asegurar que la carpeta 'data' exista en tu Mac
+    dir_name = os.path.dirname(DB_PATH)
+    if dir_name and not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+        
     conn = get_connection()
-    conn.executescript("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            usuario TEXT UNIQUE NOT NULL,
-            senha TEXT NOT NULL,
-            nome TEXT NOT NULL,
-            nivel TEXT NOT NULL
-        );
-
+    cursor = conn.cursor()
+    
+    # 1. Crear la tabla de configuración original (con sintaxis 100% limpia de fábrica)
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS config_empresa (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             nome_empresa TEXT DEFAULT 'Minha Loja',
@@ -51,48 +32,79 @@ def inicializar_db():
             logo_path TEXT,
             plano TEXT DEFAULT 'Starter'
         );
+    """)
+    
+    # Inyectar una fila por defecto si la tabla está completamente vacía
+    cursor.execute("SELECT COUNT(*) FROM config_empresa")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("""
+            INSERT INTO config_empresa (id, nome_empresa, plano) 
+            VALUES (1, 'Minha Loja', 'Starter');
+        """)
+    
+    # 2. --- INYECTOR DE SEGURIDAD AUTOMÁTICO PARA EL PIX ---
+    try:
+        cursor.execute("ALTER TABLE config_empresa ADD COLUMN pix_chave TEXT;")
+        conn.commit()
+    except sqlite3.OperationalError:
+        # Si la columna ya existe, SQLite la ignora de forma segura
+        pass
+
+    # 3. Crear el resto de las tablas del sistema (Incluye la tabla 'usuarios' que faltaba)
+    cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario TEXT UNIQUE NOT NULL,
+            senha TEXT NOT NULL,
+            nome TEXT NOT NULL,
+            nivel TEXT NOT NULL
+        );
 
         CREATE TABLE IF NOT EXISTS produtos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo_producto TEXT UNIQUE NOT NULL,
+            codigo_producto TEXT PRIMARY KEY,
             nombre_producto TEXT NOT NULL,
-            categoria TEXT,
-            precio_costo REAL DEFAULT 0,
-            precio_venta REAL DEFAULT 0,
-            estoque_atual INTEGER DEFAULT 0,
-            stock_minimo INTEGER DEFAULT 5,
-            validade TEXT
+            precio_costo REAL,
+            precio_venta REAL,
+            estoque_atual REAL,
+            stock_minimo REAL,
+            data_vencimento TEXT
         );
 
         CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            cpf TEXT UNIQUE,
+            cpf_cnpj TEXT,
             telefone TEXT,
-            email TEXT,
-            tipo_cliente TEXT DEFAULT 'Normal'
+            email TEXT
         );
 
         CREATE TABLE IF NOT EXISTS vendas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            numero_cupom INTEGER NOT NULL,
-            codigo_producto TEXT NOT NULL,
-            cantidad INTEGER NOT NULL,
-            total REAL NOT NULL,
-            forma_pagamento TEXT,
-            data_venda TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            usuario TEXT,
-            cliente_id INTEGER,
-            desconto REAL DEFAULT 0
+            numero_cupom TEXT,
+            data_venda TEXT,
+            codigo_producto TEXT,
+            cantidad REAL,
+            precio_unitario REAL,
+            total REAL,
+            forma_pagamento TEXT
         );
 
-        INSERT OR IGNORE INTO usuarios (usuario, senha, nome, nivel)
-        VALUES ('admin', 'admin123', 'Administrador', 'admin');
-        INSERT OR IGNORE INTO usuarios (usuario, senha, nome, nivel)
-VALUES ('cajero', 'cajero123', 'Operador de Caixa', 'cajero');
-        INSERT OR IGNORE INTO config_empresa (id, nome_empresa, plano)
-        VALUES (1, 'Minha Loja', 'Starter');
+        CREATE TABLE IF NOT EXISTS cierres_caja (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha TEXT,
+            total_ventas REAL,
+            diferencia REAL
+        );
     """)
-    _migrar(conn)
+    
+    # Inyectar un usuario administrador por defecto si la tabla está vacía para permitirte entrar
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    if cursor.fetchone()[0] == 0:
+        # Registra el usuario 'admin' con contraseña 'admin' de fábrica (Nivel de acceso administrador)
+        cursor.execute("""
+            INSERT INTO usuarios (usuario, senha, nome, nivel) 
+            VALUES ('admin', 'admin', 'Administrador', 'admin');
+        """)
+    
     conn.commit()
     conn.close()

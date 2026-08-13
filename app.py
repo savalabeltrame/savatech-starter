@@ -4,7 +4,19 @@ from core.database import inicializar_db, get_connection
 from core.auth import mostrar_login
 
 st.set_page_config(page_title="Savatech Starter", page_icon="🏪", layout="wide")
+
+# --- INICIALIZACIÓN DE BASE DE DATOS Y RESGUARDOS ---
 inicializar_db()
+
+# Inyector de seguridad redundante para garantizar la existencia de la columna Pix
+conn_alter = get_connection()
+try:
+    conn_alter.execute("ALTER TABLE config_empresa ADD COLUMN pix_chave TEXT;")
+    conn_alter.commit()
+except Exception:
+    pass
+finally:
+    conn_alter.close()
 
 # --- CONTROL DE SESIÓN ---
 if 'logged_in' not in st.session_state:
@@ -20,7 +32,7 @@ if not st.session_state['logged_in']:
 user_role = st.session_state.get('user_role', 'cajero')
 
 # --- DEFINICIÓN DE PÁGINAS MEDIANTE OBJETOS ---
-# Corregido: Se cambió el parámetro 'label' por 'title' que es el nombre oficial en Streamlit
+# Esto evita fallas con nombres de archivos repetidos y repara el KeyError: 'url_pathname'
 pag_caixa = st.Page("pages/04_caixa.py", title="Caixa PDV", icon="🧾")
 pag_clientes = st.Page("pages/05_clientes.py", title="Clientes", icon="👥")
 pag_dashboard = st.Page("pages/01_dashboard.py", title="Dashboard", icon="📊")
@@ -48,14 +60,18 @@ empresa = conn.execute("SELECT * FROM config_empresa WHERE id = 1").fetchone()
 conn.close()
 
 with st.sidebar:
-    if empresa['logo_path'] and os.path.exists(empresa['logo_path']):
+    if empresa and empresa['logo_path'] and os.path.exists(empresa['logo_path']):
         st.image(empresa['logo_path'], width=180)
     else:
-        st.markdown("## 2")
+        st.markdown("## 🏪")
     
-    st.title(empresa['nome_empresa'])
-    st.caption(f"Plano: {empresa['plano']} | 👤 {st.session_state['user_name']}")
-    
+    if empresa:
+        st.title(empresa['nome_empresa'])
+        st.caption(f"Plano: {empresa['plano']} | 👤 {st.session_state['user_name']}")
+    else:
+        st.title("Minha Loja")
+        st.caption(f"👤 {st.session_state['user_name']}")
+        
     if user_role == 'admin':
         st.success("👑 Administrador")
     else:
@@ -74,13 +90,13 @@ with st.sidebar:
         st.session_state['user_role'] = None
         st.rerun()
 
-# ===== PANTALLA PRINCIPAL (DASHBOARD) =====
+# ===== PANTALLA PRINCIPAL DE BIENVENIDA =====
 st.title(f"🏪 Bem-vindo, {st.session_state['user_name']}!")
-st.markdown("### Selecione um módulo para comenzar:")
+st.markdown("### Selecione um módulo para começar:")
 st.markdown("---")
 
 if user_role == 'admin':
-    # ===== ADMIN VE TODO =====
+    # ===== PANEL VISUAL COMPLETO PARA EL ADMINISTRADOR =====
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("🏠 Inicio (Página Actual)", use_container_width=True, disabled=True):
@@ -113,7 +129,7 @@ if user_role == 'admin':
     st.info("💡 También puedes usar el menú de la barra lateral izquierda.")
 
 else:
-    # ===== CAJERO: CAIXA Y CLIENTES =====
+    # ===== PANEL COMPACTO PARA EL CAJERO =====
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("🏠 Inicio", use_container_width=True):

@@ -181,10 +181,14 @@ else:
 
     st.markdown("---")
 
-  # =========================
+# =========================
 # 💳 PAGAMENTO
 # =========================
 st.subheader("💳 Pagamento")
+
+# Intentar obtener el total desde las variables comunes de tu carrito en la sesión
+# Si no encuentra ninguna, por defecto usará 0.0 para que la app no colapse
+total_venda = st.session_state.get('total_carrito', st.session_state.get('total_venda', 0.0))
 
 forma_pagamento = st.selectbox(
     "Forma de pagamento",
@@ -198,14 +202,14 @@ if forma_pagamento == 'Dinheiro':
     valor_recebido = st.number_input(
         "💵 Valor recebido do cliente (R$)", 
         min_value=0.0, 
-        value=float(total), 
+        value=float(total_venda), # Corregido: Usa la variable segura total_venda
         step=1.0, 
         key="valor_recebido"
     )
-    if valor_recebido >= total:
-        st.success(f"💵 Troco: R$ {valor_recebido - total:.2f}")
+    if valor_recebido >= total_venda:
+        st.success(f"💵 Troco: R$ {valor_recebido - total_venda:.2f}")
     else:
-        st.error(f"⚠️ Faltante: R$ {total - valor_recebido:.2f}")
+        st.error(f"⚠️ Faltante: R$ {total_venda - valor_recebido:.2f}")
         pode_finalizar = False
 
 if forma_pagamento == 'Pix':
@@ -222,40 +226,40 @@ if forma_pagamento == 'Pix':
     else:
         st.markdown("**📱 Exiba o QR Code para o cliente escanear:**")
         
-        with st.spinner("Gerando QR Code do Pix..."):
-            # 1. Gerar a string padrão do Banco Central usando a sua função corrigida
-            # Nota: Limitei o nome a 25 caracteres e fixei a cidade padrão para evitar falhas bancárias
-            nome_recebedor = empresa['nome_empresa'][:25].upper()
-            payload = generar_string_pix(
-                chave_pix=chave_pix,
-                nome_recebedor=nome_recebedor,
-                cidade_recebedor="JOINVILLE", 
-                valor_total=total
-            )
+        if total_venda > 0:
+            with st.spinner("Gerando QR Code do Pix..."):
+                nome_recebedor = empresa['nome_empresa'][:25].upper()
+                payload = generar_string_pix(
+                    chave_pix=chave_pix,
+                    nome_recebedor=nome_recebedor,
+                    cidade_recebedor="JOINVILLE", 
+                    valor_total=total_venda # Corregido: Usa la variable segura total_venda
+                )
+                
+                qr = qrcode.QRCode(version=1, box_size=10, border=4)
+                qr.add_data(payload)
+                qr.make(fit=True)
+                img_qr = qr.make_image(fill_color="black", back_color="white")
+                
+                buf = io.BytesIO()
+                img_qr.save(buf, format="PNG")
+                byte_im = buf.getvalue()
             
-            # 2. Configurar o gerador de QR Code
-            qr = qrcode.QRCode(version=1, box_size=10, border=4)
-            qr.add_data(payload)
-            qr.make(fit=True)
-            img_qr = qr.make_image(fill_color="black", back_color="white")
-            
-            # 3. Converter a imagem para bytes na memória para o Streamlit aceitar
-            buf = io.BytesIO()
-            img_qr.save(buf, format="PNG")
-            byte_im = buf.getvalue()
-        
-        # 4. Renderizar a interface visual em duas colunas organizadas
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            st.image(byte_im, caption="Escaneie para pagar", width=230)
-        with c2:
-            st.markdown(f"### **Valor: R$ {total:.2f}**")
-            st.caption("Pix copia e cola:")
-            st.code(payload, language=None)
-            
-        pix_ok = st.checkbox("✅ Pagamento Pix confirmado pelo banco", key="pix_ok")
-        if not pix_ok:
+            c1, c2 = st.columns()
+            with c1:
+                st.image(byte_im, caption="Escaneie para pagar", width=230)
+            with c2:
+                st.markdown(f"### **Valor: R$ {total_venda:.2f}**")
+                st.caption("Pix copia e cola:")
+                st.code(payload, language=None)
+                
+            pix_ok = st.checkbox("✅ Pagamento Pix confirmado pelo banco", key="pix_ok")
+            if not pix_ok:
+                pode_finalizar = False
+        else:
+            st.warning("⚠️ O carrinho está vazio. Adicione produtos para gerar o Pix.")
             pode_finalizar = False
+
 
     # =========================
     # FINALIZAR
