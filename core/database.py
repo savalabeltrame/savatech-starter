@@ -4,6 +4,9 @@ import os
 # Ruta estándar de la base de datos dentro de tu proyecto
 DB_PATH = "data/sistema.db"
 
+# REQUISITO EXIGIDO POR CONFIG_EMPRESA: Ruta para almacenar los logotipos de los clientes
+LOGOS_DIR = "img" 
+
 def get_connection():
     """Establece una conexión segura con la base de datos SQLite"""
     conn = sqlite3.connect(DB_PATH)
@@ -12,9 +15,14 @@ def get_connection():
 
 def inicializar_db():
     """Crea las tablas originales del sistema e inyecta actualizaciones de forma segura"""
+    # Asegurar que la carpeta 'data' exista en tu Mac
     dir_name = os.path.dirname(DB_PATH)
     if dir_name and not os.path.exists(dir_name):
         os.makedirs(dir_name)
+        
+    # Asegurar que la carpeta de imágenes (img) exista para evitar fallas al subir logos
+    if not os.path.exists(LOGOS_DIR):
+        os.makedirs(LOGOS_DIR)
         
     conn = get_connection()
     cursor = conn.cursor()
@@ -48,7 +56,7 @@ def inicializar_db():
     except sqlite3.OperationalError:
         pass
 
-    # 3. Crear el resto de las tablas del sistema (Estructura expandida 100% compatible)
+    # 3. Crear el resto de las tablas del sistema
     cursor.executescript("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +84,8 @@ def inicializar_db():
             nome TEXT NOT NULL,
             cpf TEXT,
             telefone TEXT,
-            email TEXT
+            email TEXT,
+            tipo_cliente TEXT
         );
 
         CREATE TABLE IF NOT EXISTS vendas (
