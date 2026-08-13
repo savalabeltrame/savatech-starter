@@ -70,10 +70,10 @@ def inicializar_db():
             data_vencimento TEXT
         );
 
-        CREATE TABLE IF NOT EXISTS clientes (
+            CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            cpf_cnpj TEXT,
+            cpf TEXT,            # <-- ALTERADO DE cpf_cnpj PARA cpf
             telefone TEXT,
             email TEXT
         );
