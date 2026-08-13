@@ -12,7 +12,6 @@ def get_connection():
 
 def inicializar_db():
     """Crea las tablas originales del sistema e inyecta actualizaciones de forma segura"""
-    # Asegurar que la carpeta 'data' exista en tu Mac
     dir_name = os.path.dirname(DB_PATH)
     if dir_name and not os.path.exists(dir_name):
         os.makedirs(dir_name)
@@ -20,7 +19,7 @@ def inicializar_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # 1. Crear la tabla de configuración original (con sintaxis 100% limpia de fábrica)
+    # 1. Crear la tabla de configuración original
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS config_empresa (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -42,15 +41,14 @@ def inicializar_db():
             VALUES (1, 'Minha Loja', 'Starter');
         """)
     
-    # 2. --- INYECTOR DE SEGURIDAD AUTOMÁTICO PARA EL PIX ---
+    # 2. Inyector de seguridad automático para el Pix
     try:
         cursor.execute("ALTER TABLE config_empresa ADD COLUMN pix_chave TEXT;")
         conn.commit()
     except sqlite3.OperationalError:
-        # Si la columna ya existe, SQLite la ignora de forma segura
         pass
 
-    # 3. Crear el resto de las tablas del sistema (Incluye la tabla 'usuarios' que faltaba)
+    # 3. Crear el resto de las tablas del sistema (Sin comentarios con #)
     cursor.executescript("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,10 +68,10 @@ def inicializar_db():
             data_vencimento TEXT
         );
 
-            CREATE TABLE IF NOT EXISTS clientes (
+        CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            cpf TEXT,            # <-- ALTERADO DE cpf_cnpj PARA cpf
+            cpf TEXT,
             telefone TEXT,
             email TEXT
         );
@@ -97,10 +95,9 @@ def inicializar_db():
         );
     """)
     
-    # Inyectar un usuario administrador por defecto si la tabla está vacía para permitirte entrar
+    # Inyectar un usuario administrador por defecto si la tabla está vacía
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone()[0] == 0:
-        # Registra el usuario 'admin' con contraseña 'admin' de fábrica (Nivel de acceso administrador)
         cursor.execute("""
             INSERT INTO usuarios (usuario, senha, nome, nivel) 
             VALUES ('admin', 'admin', 'Administrador', 'admin');
